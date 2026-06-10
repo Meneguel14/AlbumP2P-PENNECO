@@ -1,9 +1,8 @@
 const WebSocket = require('ws');
 const crypto = require('crypto');
+const { handleMessage } = require('../handlers/messageHandler');
 
-// Estado local do nó 
 const neighbors = [];
-const processedQueries = new Set(); // Guarda os query_ids para evitar loops 
 
 function initP2PServer(port) {
     const server = new WebSocket.Server({ port });
@@ -11,63 +10,36 @@ function initP2PServer(port) {
     server.on('connection', (ws) => {
         initConnection(ws);
     });
-    console.log(`Servidor P2P rodando na porta ${port}`);
+    console.log(`[P2P] Servidor rodando na porta ${port}`);
 }
 
 function connectToNeighbor(peerAddress) {
     const ws = new WebSocket(peerAddress);
     ws.on('open', () => {
         initConnection(ws);
-        // Anuncia a presença assim que conecta 
         sendMessage(ws, { type: 'HELLO', payload: { message: 'Novo nó na rede' } });
     });
+    ws.on('error', (err) => console.log(`[Erro P2P] Falha ao conectar em ${peerAddress}`));
 }
 
 function initConnection(ws) {
     neighbors.push(ws);
     
     ws.on('message', (data) => {
-        const message = JSON.parse(data);
-        handleMessage(ws, message);
+        try {
+            const message = JSON.parse(data);
+            // Injeção de dependência rudimentar: passamos as funções de rede para o handler
+            handleMessage(ws, message, { broadcast, sendMessage });
+        } catch (error) {
+            console.error("Erro ao fazer parse do JSON:", error);
+        }
     });
 
     ws.on('close', () => {
-        neighbors.splice(neighbors.indexOf(ws), 1);
+        const index = neighbors.indexOf(ws);
+        if (index !== -1) neighbors.splice(index, 1);
+        console.log('[P2P] Vizinho desconectado.');
     });
-}
-
-function handleMessage(ws, message) {
-    switch (message.type) {
-        case 'HELLO': // Anuncia a presença de um nó para um vizinho 
-            console.log('Vizinho conectado:', message.payload);
-            break;
-            
-        case 'SEARCH': // Busca uma figurinha específica na rede [cite: 11]
-            if (processedQueries.has(message.query_id)) {
-                // Se já processou, descarta a mensagem [cite: 19]
-                console.log(`Mensagem duplicada descartada: ${message.query_id}`);
-                return; 
-            }
-            
-            // Registra o identificador [cite: 19]
-            processedQueries.add(message.query_id);
-            console.log(`Buscando figurinha: ${message.figurinha_id}`);
-
-            // TODO: Verificar o inventário local aqui...
-
-            // Reenvia a consulta aos vizinhos com ttl - 1 [cite: 19]
-            if (message.ttl > 1) {
-                broadcast({
-                    type: 'SEARCH',
-                    query_id: message.query_id,
-                    figurinha_id: message.figurinha_id,
-                    ttl: message.ttl - 1
-                }, ws);
-            }
-            break;
-            
-        // Adicionaremos TRADE_OFFER, TRADE_ACCEPT, etc., na próxima etapa.
-    }
 }
 
 function broadcast(message, senderWs = null) {
@@ -82,8 +54,4 @@ function sendMessage(ws, message) {
     ws.send(JSON.stringify(message));
 }
 
-function generateQueryId() {
-    return crypto.randomUUID();
-}
-
-module.exports = { initP2PServer, connectToNeighbor, broadcast, generateQueryId };
+module.exports = { initP2PServer, connectToNeighbor };
