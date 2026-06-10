@@ -1,0 +1,19 @@
+{
+  "name": "p2p-album",
+  "version": "1.0.0",
+  "description": "Sistema P2P para troca de figurinhas",
+  "main": "backend/server.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Meneguel14/AlbumP2P-PENNECO.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Meneguel14/AlbumP2P-PENNECO/issues"
+  },
+  "homepage": "https://github.com/Meneguel14/AlbumP2P-PENNECO#readme",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}
