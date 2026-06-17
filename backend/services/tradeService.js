@@ -1,4 +1,4 @@
-][const inventory = require('../models/inventory');
+const inventory = require('../models/inventory');
 
 // Guarda as propostas recebidas aguardando ação do usuário
 let pendingOffers = [];
@@ -85,4 +85,4 @@ module.exports = {
     getPendingOffers,
     processManualAccept,
     processManualReject
-};]
+};
