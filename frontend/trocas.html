@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Central de Trocas - Álbum P2P</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>🤝 Central de Trocas</h2>
+        
+        <div class="card">
+            <h3>Nova Proposta de Troca</h3>
+            <div class="form-group">
+                <label>Nó de Destino (ex: ALUNO-02):</label>
+                <input type="text" id="target-peer" placeholder="ALUNO-YY">
+                
+                <label>Eu Ofereço:</label>
+                <input type="text" id="offer-sticker" placeholder="FIG-XX (Que eu tenho)">
+                
+                <label>Eu Quero:</label>
+                <input type="text" id="want-sticker" placeholder="FIG-XX (Que o alvo tem)">
+                
+                <button class="btn" style="margin-top: 10px;" onclick="enviarProposta()">Enviar Proposta</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Propostas Recebidas</h3>
+            <ul id="propostas-recebidas">
+                <li>
+                    <strong>ALUNO-05</strong> oferece <strong>FIG-10</strong> por sua <strong>FIG-01</strong>.
+                    <button class="btn btn-small" style="background: #28a745;">Aceitar</button>
+                    <button class="btn btn-small" style="background: #dc3545;">Recusar</button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+       async function enviarProposta() {
+    const peer = document.getElementById('target-peer').value.trim();
+    const offer = document.getElementById('offer-sticker').value.trim();
+    const want = document.getElementById('want-sticker').value.trim();
+    
+    if(!peer || !offer || !want) return alert("Preencha todos os campos!");
+    
+    try {
+        const res = await fetch('/api/trade/offer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target_peer: peer, offered_sticker: offer, wanted_sticker: want })
+        });
+        if(res.ok) {
+            alert(`Mensagem TRADE_OFFER enviada!`);
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+// Escuta atualizações de trocas e propostas aceitas
+setInterval(async () => {
+    try {
+        const res = await fetch('/api/notifications');
+        const logs = await res.json();
+        const lista = document.getElementById('propostas-recebidas');
+        
+        const tradeLogs = logs.filter(l => l.text.toLowerCase().includes('troca') || l.text.toLowerCase().includes('proposta') || l.text.toLowerCase().includes('confirmada'));
+        if(tradeLogs.length > 0) {
+            lista.innerHTML = tradeLogs.map(l => `<li>[${l.time}] ${l.text}</li>`).join('');
+        }
+    } catch (e) {}
+}, 2000);
+    </script>
+</body>
+</html>

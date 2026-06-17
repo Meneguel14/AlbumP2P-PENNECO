@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscar na Rede - Álbum P2P</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>🔍 Buscar Figurinhas na Rede</h2>
+        
+        <div class="form-group">
+            <label for="sticker-id">ID da Figurinha (ex: FIG-05):</label>
+            <input type="text" id="sticker-id" placeholder="FIG-XX">
+            <button class="btn" onclick="iniciarBusca()">Iniciar Busca (Flooding)</button>
+        </div>
+
+        <div class="card">
+            <h3>Resultados da Busca</h3>
+            <div id="resultados-busca">
+                <p>Nenhuma busca em andamento...</p>
+                </div>
+        </div>
+    </div>
+
+    <script>
+        async function iniciarBusca() {
+    const stickerId = document.getElementById('sticker-id').value.trim();
+    if(!stickerId) return alert("Digite o ID da figurinha!");
+    
+    const areaResultados = document.getElementById('resultados-busca');
+    areaResultados.innerHTML = `<p>Procurando por <strong>${stickerId}</strong> na rede... (TTL: 7)</p><ul id="lista-hits"></ul>`;
+    
+    try {
+        await fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sticker_id: stickerId })
+        });
+    } catch (err) {
+        console.error("Erro ao disparar busca:", err);
+    }
+}
+
+// Checa a API a cada 2 segundos procurando respostas vindas da rede
+setInterval(async () => {
+    try {
+        const res = await fetch('/api/notifications');
+        const logs = await res.json();
+        const listaHits = document.getElementById('lista-hits');
+        
+        if (listaHits) {
+            const hits = logs.filter(l => l.text.includes('[HIT]'));
+            if(hits.length > 0) {
+                listaHits.innerHTML = hits.map(h => `<li>[${h.time}] ${h.text}</li>`).join('');
+            }
+        }
+    } catch (e) {}
+}, 2000);
+    </script>
+</body>
+</html>

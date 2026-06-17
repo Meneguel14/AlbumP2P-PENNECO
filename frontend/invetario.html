@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Inventário - Álbum P2P</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>📦 Meu Inventário</h2>
+        
+        <div class="card">
+            <h3>Minha Figurinha Autoral</h3>
+            <p><strong>ID:</strong> <span id="autoral-id">FIG-01</span></p>
+            <p><strong>Quantidade disponível:</strong> <span id="autoral-qtd">28</span></p>
+        </div>
+
+        <div class="card">
+            <h3>Outras Figurinhas</h3>
+            <ul id="lista-inventario">
+                <li>Ainda não há outras figurinhas no inventário.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+       async function carregarInventario() {
+    try {
+        const response = await fetch('/api/inventory');
+        const data = await response.json();
+        
+        document.getElementById('autoral-id').innerText = data.figurinha_autoral;
+        document.getElementById('autoral-qtd').innerText = data.figurinhas[data.figurinha_autoral] || 0;
+        
+        const lista = document.getElementById('lista-inventario');
+        lista.innerHTML = '';
+        
+        let possuiOutras = false;
+        for (const [id, qtd] of Object.entries(data.figurinhas)) {
+            if (id !== data.figurinha_autoral) {
+                possuiOutras = true;
+                lista.innerHTML += `<li><strong>${id}</strong> — Unidades: ${qtd}</li>`;
+            }
+        }
+        if(!possuiOutras) {
+            lista.innerHTML = '<li>Nenhuma outra figurinha coletada até o momento.</li>';
+        }
+    } catch (err) {
+        console.error("Erro ao carregar inventário:", err);
+    }
+}
+carregarInventario();
+    </script>
+</body>
+</html>
