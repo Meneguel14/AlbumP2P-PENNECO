@@ -4,6 +4,8 @@ const { initP2PServer, connectToNeighbor, broadcast } = require('./network/p2p')
 const inventory = require('./models/inventory');
 const searchService = require('./services/searchService');
 const notificationService = require('./services/notificationService');
+const tradeService = require('./services/tradeService');
+const messageHandler = require('./handlers/messageHandler');
 
 const app = express();
 app.use(express.json());
@@ -32,6 +34,19 @@ app.get('/api/notifications', (req, res) => {
     res.json(notificationService.getNotifications());
 });
 
+app.post('/api/trade/accept', (req, res) => {
+    const { peer_id } = req.body;
+    tradeService.processManualAccept(peer_id, { broadcast }, searchService.MEU_NODE_ID);
+    res.json({ success: true });
+});
+
+// Rota para Recusar
+app.post('/api/trade/reject', (req, res) => {
+    const { peer_id } = req.body;
+    tradeService.processManualReject(peer_id, { broadcast }, searchService.MEU_NODE_ID);
+    res.json({ success: true });
+});
+
 // Rota para enviar uma proposta de troca
 app.post('/api/trade/offer', (req, res) => {
     const { target_peer, offered_sticker, wanted_sticker } = req.body;
@@ -54,7 +69,7 @@ const neighborAddress = process.argv[2]; // ex: ws://localhost:8080
 const P2P_PORT = parseInt(process.argv[3]) || 8080;
 const HTTP_PORT = parseInt(process.argv[4]) || 3000;
 
-if (neighborAddress) {
+if (neighborAddress && neighborAddress !== "none") {
     console.log(`Conectando ao vizinho inicial em ${neighborAddress}...`);
     connectToNeighbor(neighborAddress);
 }
