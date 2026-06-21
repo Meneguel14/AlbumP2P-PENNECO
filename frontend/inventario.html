@@ -3,54 +3,74 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Inventário - Álbum P2P</title>
+    <title>Inventário – Álbum P2P</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
+        <a href="index.html" class="back-link">← Voltar</a>
         <h2>📦 Meu Inventário</h2>
-        
-        <div class="card">
-            <h3>Minha Figurinha Autoral</h3>
-            <p><strong>ID:</strong> <span id="autoral-id">FIG-01</span></p>
-            <p><strong>Quantidade disponível:</strong> <span id="autoral-qtd">28</span></p>
+
+        <!-- Figurinha autoral em destaque -->
+        <div class="card autoral-card">
+            <div class="autoral-img-wrap">
+                <img id="autoral-img" src="/api/sticker-image/FIG-22" alt="FIG-22" class="autoral-img">
+                <span class="autoral-badge">Minha Figurinha</span>
+            </div>
+            <div class="autoral-details">
+                <h3 id="autoral-id">FIG-22</h3>
+                <p class="autoral-qty">Unidades disponíveis: <strong id="autoral-qtd">28</strong></p>
+                <p class="autoral-node">Nó: <code>ALUNO-22</code></p>
+            </div>
         </div>
 
+        <!-- Outras figurinhas coletadas -->
         <div class="card">
-            <h3>Outras Figurinhas</h3>
-            <ul id="lista-inventario">
-                <li>Ainda não há outras figurinhas no inventário.</li>
+            <h3>Outras Figurinhas Coletadas</h3>
+            <ul id="lista-inventario" class="sticker-list">
+                <li class="empty-msg">Nenhuma outra figurinha coletada ainda.</li>
             </ul>
         </div>
     </div>
 
     <script>
-       async function carregarInventario() {
-    try {
-        const response = await fetch('/api/inventory');
-        const data = await response.json();
-        
-        document.getElementById('autoral-id').innerText = data.figurinha_autoral;
-        document.getElementById('autoral-qtd').innerText = data.figurinhas[data.figurinha_autoral] || 0;
-        
-        const lista = document.getElementById('lista-inventario');
-        lista.innerHTML = '';
-        
-        let possuiOutras = false;
-        for (const [id, qtd] of Object.entries(data.figurinhas)) {
-            if (id !== data.figurinha_autoral) {
-                possuiOutras = true;
-                lista.innerHTML += `<li><strong>${id}</strong> — Unidades: ${qtd}</li>`;
+        async function carregarInventario() {
+            try {
+                const response = await fetch('/api/inventory');
+                const data = await response.json();
+
+                // Atualiza figurinha autoral
+                const autorId = data.figurinha_autoral;
+                document.getElementById('autoral-id').innerText = autorId;
+                document.getElementById('autoral-qtd').innerText = data.figurinhas[autorId] || 0;
+                document.getElementById('autoral-img').src = `/api/sticker-image/${autorId}`;
+
+                // Atualiza lista de outras figurinhas
+                const lista = document.getElementById('lista-inventario');
+                lista.innerHTML = '';
+                let possuiOutras = false;
+
+                for (const [id, qtd] of Object.entries(data.figurinhas)) {
+                    if (id !== autorId) {
+                        possuiOutras = true;
+                        lista.innerHTML += `
+                            <li class="sticker-item">
+                                <strong>${id}</strong>
+                                <span class="badge">${qtd} un.</span>
+                            </li>`;
+                    }
+                }
+
+                if (!possuiOutras) {
+                    lista.innerHTML = '<li class="empty-msg">Nenhuma outra figurinha coletada ainda.</li>';
+                }
+            } catch (err) {
+                console.error('Erro ao carregar inventário:', err);
             }
         }
-        if(!possuiOutras) {
-            lista.innerHTML = '<li>Nenhuma outra figurinha coletada até o momento.</li>';
-        }
-    } catch (err) {
-        console.error("Erro ao carregar inventário:", err);
-    }
-}
-carregarInventario();
+
+        carregarInventario();
+        setInterval(carregarInventario, 5000); // Atualiza a cada 5s
     </script>
 </body>
 </html>

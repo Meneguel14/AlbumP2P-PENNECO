@@ -1,49 +1,56 @@
-const searchService = require('../services/searchService');
-const tradeService = require('../services/tradeService');
-const notificationService = require('../services/notificationService');
+// ============================================================
+// messageHandler.js – Dispatcher central de mensagens P2P
+//
+// Cada tipo de mensagem é delegado ao seu Controller exclusivo.
+// Para adicionar um novo protocolo: crie o Controller e adicione
+// um case aqui.
+// ============================================================
+const HelloController          = require('../controllers/HelloController');
+const SearchController         = require('../controllers/SearchController');
+const SearchHitController      = require('../controllers/SearchHitController');
+const SearchMissController     = require('../controllers/SearchMissController');
+const TradeOfferController     = require('../controllers/TradeOfferController');
+const TradeAcceptController    = require('../controllers/TradeAcceptController');
+const TradeRejectController    = require('../controllers/TradeRejectController');
+const TransferConfirmController = require('../controllers/TransferConfirmController');
 
 function handleMessage(ws, message, networkContext) {
     switch (message.type) {
+
         case 'HELLO':
-            console.log(`[HELLO] Vizinho disse: ${message.payload.message}`);
-            notificationService.addNotification(`Vizinho conectado na rede.`);
+            new HelloController(ws, message, networkContext).handle();
             break;
-            
+
         case 'SEARCH':
-            searchService.processSearch(ws, message, networkContext);
+            new SearchController(ws, message, networkContext).handle();
             break;
-            
+
         case 'SEARCH_HIT':
-            const hitText = `[HIT] Figurinha ${message.sticker_id} encontrada no nó ${message.sender_peer_id}!`;
-            console.log(hitText);
-            notificationService.addNotification(hitText);
+            new SearchHitController(ws, message, networkContext).handle();
             break;
 
         case 'SEARCH_MISS':
+            new SearchMissController(ws, message, networkContext).handle();
             break;
 
         case 'TRADE_OFFER':
-            const offerText = `Proposta de ${message.sender_peer_id}: Quer ${message.wanted_sticker} e oferece ${message.offered_sticker}`;
-            notificationService.addNotification(offerText);
-            tradeService.processTradeOffer(ws, message, networkContext, searchService.MEU_NODE_ID);
+            new TradeOfferController(ws, message, networkContext).handle();
             break;
-            
+
         case 'TRADE_ACCEPT':
-            notificationService.addNotification(`Troca aceita por ${message.sender_peer_id}!`);
-            tradeService.processTradeAccept(ws, message, networkContext, searchService.MEU_NODE_ID);
+            new TradeAcceptController(ws, message, networkContext).handle();
             break;
 
         case 'TRADE_REJECT':
-            notificationService.addNotification(`Troca recusada por ${message.sender_peer_id}.`);
+            new TradeRejectController(ws, message, networkContext).handle();
             break;
 
         case 'TRANSFER_CONFIRM':
-            notificationService.addNotification(`Transferência confirmada com ${message.sender_peer_id}!`);
-            tradeService.processTransferConfirm(ws, message);
+            new TransferConfirmController(ws, message, networkContext).handle();
             break;
-            
+
         default:
-            console.log(`[AVISO] Tipo de mensagem desconhecido: ${message.type}`);
+            console.log(`[AVISO] Tipo de mensagem desconhecido: "${message.type}"`);
     }
 }
 
