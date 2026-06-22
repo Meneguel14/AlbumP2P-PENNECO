@@ -14,10 +14,19 @@ const notificationService = require('../services/notificationService');
 const { MEU_NODE_ID } = require('../config');
 
 let pendingOffers = [];
+let pushCallback = null;
 
-/** Adiciona uma proposta recebida à fila de pendentes. */
+/** Registra a função que empurra eventos para os browsers via WebSocket. */
+function setPushCallback(fn) {
+    pushCallback = fn;
+}
+
+/** Adiciona uma proposta recebida à fila de pendentes e notifica o browser. */
 function addOffer(offer) {
     pendingOffers.push(offer);
+    if (pushCallback) {
+        pushCallback({ type: 'PENDING_OFFERS', pending: pendingOffers });
+    }
 }
 
 /** Retorna todas as propostas ainda aguardando decisão. */
@@ -122,5 +131,6 @@ module.exports = {
     addOffer,
     getPendingOffers,
     processManualAccept,
-    processManualReject
+    processManualReject,
+    setPushCallback
 };

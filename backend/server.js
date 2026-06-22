@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const WebSocket = require('ws');
 const { initP2PServer, connectToNeighbor, broadcast } = require('./network/p2p');
 const inventory = require('./models/inventory');
 const searchState = require('./services/searchService');
@@ -20,9 +21,9 @@ app.use(express.static(path.join(__dirname, '../frontend')));
 // Busca primeiro em AlbumCopa/Images/, depois na raiz AlbumCopa/.
 app.get('/api/sticker-image/:sticker_id', (req, res) => {
     const cleanId = req.params.sticker_id.replace(/\.(png|PNG)$/i, '');
-    const imagesDir  = path.join(__dirname, '../../Images', `${cleanId}.png`);
-    const rootDir    = path.join(__dirname, '../../',       `${cleanId}.png`);
-    const imagePath  = fs.existsSync(imagesDir) ? imagesDir : rootDir;
+    const imagesDir = path.join(__dirname, '../../Images', `${cleanId}.png`);
+    const rootDir   = path.join(__dirname, '../../',       `${cleanId}.png`);
+    const imagePath = fs.existsSync(imagesDir) ? imagesDir : rootDir;
     res.sendFile(imagePath, (err) => {
         if (err) res.status(404).json({ error: 'Imagem não encontrada.' });
     });
@@ -42,7 +43,7 @@ app.post('/api/search', (req, res) => {
     res.json({ success: true });
 });
 
-// ── Rota: notificações (long polling simples) ─────────────────
+// ── Rota: notificações (fallback HTTP) ────────────────────────
 app.get('/api/notifications', (req, res) => {
     res.json(notificationService.getNotifications());
 });
@@ -89,7 +90,7 @@ app.post('/api/trade/reject', (req, res) => {
 });
 
 // ── Inicialização ─────────────────────────────────────────────
-const neighborAddress = process.argv[2]; // ex: ws://localhost:8080
+const neighborAddress = process.argv[2];
 const P2P_PORT  = parseInt(process.argv[3]) || 8080;
 const HTTP_PORT = parseInt(process.argv[4]) || 3000;
 
@@ -100,10 +101,46 @@ if (neighborAddress && neighborAddress !== 'none') {
 
 initP2PServer(P2P_PORT);
 
-app.listen(HTTP_PORT, () => {
+// ── Servidor HTTP + WebSocket para o frontend ─────────────────
+// Compartilha a mesma porta HTTP com o WebSocket do frontend.
+// Completamente separado do WebSocket P2P (porta P2P_PORT).
+const httpServer = app.listen(HTTP_PORT, () => {
     console.log(`\n=============================================================`);
     console.log(`  Nó: ${MEU_NODE_ID}`);
-    console.log(`  [P2P]  Rede ativa na porta : ${P2P_PORT}`);
-    console.log(`  [HTTP] Painel web em        : http://localhost:${HTTP_PORT}`);
+    console.log(`  [P2P]  Rede ativa na porta  : ${P2P_PORT}`);
+    console.log(`  [HTTP] Painel web em         : http://localhost:${HTTP_PORT}`);
+    console.log(`  [WS]   Notificações ao vivo  : ws://localhost:${HTTP_PORT}`);
     console.log(`=============================================================\n`);
 });
+
+// WebSocket do FRONTEND (mesma porta HTTP – não confundir com P2P)
+const frontendWss = new WebSocket.Server({ server: httpServer });
+const frontendClients = new Set();
+
+frontendWss.on('connection', (ws) => {
+    frontendClients.add(ws);
+
+    // Envia estado atual assim que o browser conecta
+    ws.send(JSON.stringify({
+        type: 'INIT',
+        notifications: notificationService.getNotifications(),
+        pending: tradeService.getPendingOffers()
+    }));
+
+    ws.on('close', () => frontendClients.delete(ws));
+    ws.on('error', () => frontendClients.delete(ws));
+});
+
+/** Empurra um evento para todos os browsers conectados. */
+function pushToFrontend(event) {
+    const msg = JSON.stringify(event);
+    for (const client of frontendClients) {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(msg);
+        }
+    }
+}
+
+// Registra o callback de push nos serviços
+notificationService.setPushCallback(pushToFrontend);
+tradeService.setPushCallback(pushToFrontend);

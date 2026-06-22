@@ -49,12 +49,103 @@
     </div>
 
     <script>
-        // ── Enviar proposta ───────────────────────────────────
+        // ── WebSocket para receber atualizações em tempo real ─────
+        const wsUrl = `ws://${location.host}`;
+        let ws;
+
+        function conectarWS() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => console.log('[WS] Conectado ao backend.');
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'INIT') {
+                    renderNotificacoes(data.notifications || []);
+                    renderPropostas(data.pending || []);
+                } else if (data.type === 'NOTIFICATION') {
+                    adicionarNotificacao(data.notification);
+                } else if (data.type === 'PENDING_OFFERS') {
+                    renderPropostas(data.pending || []);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('[WS] Desconectado. Reconectando em 3s...');
+                setTimeout(conectarWS, 3000);
+            };
+
+            ws.onerror = () => ws.close();
+        }
+
+        conectarWS();
+
+        // ── Renderiza a lista de notificações ─────────────────────
+        function renderNotificacoes(logs) {
+            const logEl = document.getElementById('log-atividades');
+            if (logs.length > 0) {
+                logEl.innerHTML = logs.slice(0, 20).map(n =>
+                    `<li class="log-item"><span class="log-time">${n.time}</span> ${n.text}</li>`
+                ).join('');
+            } else {
+                logEl.innerHTML = '<li class="empty-msg">Aguardando atividade...</li>';
+            }
+        }
+
+        function adicionarNotificacao(n) {
+            const logEl = document.getElementById('log-atividades');
+            const emptyMsg = logEl.querySelector('.empty-msg');
+            if (emptyMsg) emptyMsg.remove();
+            const li = document.createElement('li');
+            li.className = 'log-item';
+            li.innerHTML = `<span class="log-time">${n.time}</span> ${n.text}`;
+            logEl.prepend(li);
+            // Mantém máximo de 20 entradas
+            while (logEl.children.length > 20) logEl.lastChild.remove();
+        }
+
+        // ── Renderiza propostas pendentes ─────────────────────────
+        function renderPropostas(propostas) {
+            const lista  = document.getElementById('propostas-recebidas');
+            const badge  = document.getElementById('badge-pendentes');
+
+            badge.textContent = propostas.length;
+            badge.className = propostas.length > 0
+                ? 'badge badge-pending active'
+                : 'badge badge-pending';
+
+            if (propostas.length > 0) {
+                lista.innerHTML = propostas.map(p => `
+                    <li class="proposta-item">
+                        <div class="proposta-info">
+                            <strong>${p.sender_peer_id}</strong> oferece
+                            <span class="sticker-tag">${p.offer_sticker_id}</span>
+                            e quer
+                            <span class="sticker-tag">${p.want_sticker_id}</span>
+                        </div>
+                        <div class="proposta-actions">
+                            <button class="btn btn-sm btn-accept"
+                                onclick="responderProposta('${p.sender_peer_id}', 'accept')">
+                                ✅ Aceitar
+                            </button>
+                            <button class="btn btn-sm btn-reject"
+                                onclick="responderProposta('${p.sender_peer_id}', 'reject')">
+                                ❌ Recusar
+                            </button>
+                        </div>
+                    </li>
+                `).join('');
+            } else {
+                lista.innerHTML = '<li class="empty-msg">Nenhuma proposta pendente no momento.</li>';
+            }
+        }
+
+        // ── Enviar proposta ───────────────────────────────────────
         async function enviarProposta() {
-            const peer          = document.getElementById('target-peer').value.trim();
-            const offerSticker  = document.getElementById('offer-sticker').value.trim().toUpperCase();
-            const wantSticker   = document.getElementById('want-sticker').value.trim().toUpperCase();
-            const statusEl      = document.getElementById('status-envio');
+            const peer         = document.getElementById('target-peer').value.trim();
+            const offerSticker = document.getElementById('offer-sticker').value.trim().toUpperCase();
+            const wantSticker  = document.getElementById('want-sticker').value.trim().toUpperCase();
+            const statusEl     = document.getElementById('status-envio');
 
             if (!peer || !offerSticker || !wantSticker) {
                 statusEl.textContent = '⚠️ Preencha todos os campos!';
@@ -86,11 +177,10 @@
             } catch (err) {
                 statusEl.textContent = '❌ Falha de conexão com o servidor.';
                 statusEl.className = 'status-msg error';
-                console.error(err);
             }
         }
 
-        // ── Responder a proposta ──────────────────────────────
+        // ── Responder a proposta ──────────────────────────────────
         async function responderProposta(peerId, acao) {
             try {
                 const res = await fetch(`/api/trade/${acao}`, {
@@ -103,77 +193,10 @@
                     ? `✅ Proposta de ${peerId} ACEITA! Inventário atualizado.`
                     : `❌ Proposta de ${peerId} RECUSADA.`;
                 alert(msg);
-                verificarPropostas(); // Atualiza imediatamente
             } catch (err) {
-                console.error(err);
                 alert('Falha de conexão com o servidor.');
             }
         }
-
-        // ── Polling: propostas pendentes ──────────────────────
-        async function verificarPropostas() {
-            try {
-                const res = await fetch('/api/trade/pending');
-                const propostas = await res.json();
-                const lista = document.getElementById('propostas-recebidas');
-                const badge = document.getElementById('badge-pendentes');
-
-                badge.textContent = propostas.length;
-                badge.className = propostas.length > 0
-                    ? 'badge badge-pending active'
-                    : 'badge badge-pending';
-
-                if (propostas.length > 0) {
-                    lista.innerHTML = propostas.map(p => `
-                        <li class="proposta-item">
-                            <div class="proposta-info">
-                                <strong>${p.sender_peer_id}</strong> oferece
-                                <span class="sticker-tag">${p.offer_sticker_id}</span>
-                                e quer
-                                <span class="sticker-tag">${p.want_sticker_id}</span>
-                            </div>
-                            <div class="proposta-actions">
-                                <button class="btn btn-sm btn-accept"
-                                    onclick="responderProposta('${p.sender_peer_id}', 'accept')">
-                                    ✅ Aceitar
-                                </button>
-                                <button class="btn btn-sm btn-reject"
-                                    onclick="responderProposta('${p.sender_peer_id}', 'reject')">
-                                    ❌ Recusar
-                                </button>
-                            </div>
-                        </li>
-                    `).join('');
-                } else {
-                    lista.innerHTML = '<li class="empty-msg">Nenhuma proposta pendente no momento.</li>';
-                }
-            } catch (e) { /* silencia erros de rede */ }
-        }
-
-        // ── Polling: log de notificações ──────────────────────
-        async function verificarNotificacoes() {
-            try {
-                const res = await fetch('/api/notifications');
-                const logs = await res.json();
-                const logEl = document.getElementById('log-atividades');
-
-                if (logs.length > 0) {
-                    logEl.innerHTML = logs.slice(0, 20).map(n =>
-                        `<li class="log-item"><span class="log-time">${n.time}</span> ${n.text}</li>`
-                    ).join('');
-                } else {
-                    logEl.innerHTML = '<li class="empty-msg">Aguardando atividade...</li>';
-                }
-            } catch (e) { /* silencia erros de rede */ }
-        }
-
-        // Polling a cada 2 segundos
-        setInterval(verificarPropostas, 2000);
-        setInterval(verificarNotificacoes, 2000);
-
-        // Carrega imediatamente
-        verificarPropostas();
-        verificarNotificacoes();
     </script>
 </body>
 </html>

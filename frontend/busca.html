@@ -10,7 +10,7 @@
     <div class="container">
         <a href="index.html" class="back-link">← Voltar</a>
         <h2>🔍 Buscar Figurinhas na Rede</h2>
-        
+
         <div class="form-group">
             <label for="sticker-id">ID da Figurinha (ex: FIG-05):</label>
             <input type="text" id="sticker-id" placeholder="FIG-XX">
@@ -20,45 +20,103 @@
         <div class="card">
             <h3>Resultados da Busca</h3>
             <div id="resultados-busca">
-                <p>Nenhuma busca em andamento...</p>
-                </div>
+                <p class="empty-msg">Nenhuma busca em andamento...</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Log de Atividades da Rede</h3>
+            <ul id="log-atividades" class="log-list">
+                <li class="empty-msg">Aguardando atividade...</li>
+            </ul>
         </div>
     </div>
 
     <script>
-        async function iniciarBusca() {
-    const stickerId = document.getElementById('sticker-id').value.trim();
-    if(!stickerId) return alert("Digite o ID da figurinha!");
-    
-    const areaResultados = document.getElementById('resultados-busca');
-    areaResultados.innerHTML = `<p>Procurando por <strong>${stickerId}</strong> na rede... (TTL: 7)</p><ul id="lista-hits"></ul>`;
-    
-    try {
-        await fetch('/api/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sticker_id: stickerId })
-        });
-    } catch (err) {
-        console.error("Erro ao disparar busca:", err);
-    }
-}
+        // ── WebSocket para receber resultados em tempo real ───────
+        const wsUrl = `ws://${location.host}`;
+        let ws;
+        let buscandoId = null;
 
-// Checa a API a cada 2 segundos procurando respostas vindas da rede
-setInterval(async () => {
-    try {
-        const res = await fetch('/api/notifications');
-        const logs = await res.json();
-        const listaHits = document.getElementById('lista-hits');
-        
-        if (listaHits) {
-            const hits = logs.filter(l => l.text.includes('[HIT]'));
-            if(hits.length > 0) {
-                listaHits.innerHTML = hits.map(h => `<li>[${h.time}] ${h.text}</li>`).join('');
+        function conectarWS() {
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => console.log('[WS] Conectado ao backend.');
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'INIT') {
+                    renderLog(data.notifications || []);
+                } else if (data.type === 'NOTIFICATION') {
+                    adicionarLog(data.notification);
+                    // Se for um HIT para a busca atual, mostra no resultado
+                    if (buscandoId && data.notification.text.includes('[HIT]') &&
+                        data.notification.text.includes(buscandoId)) {
+                        mostrarHit(data.notification);
+                    }
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('[WS] Desconectado. Reconectando em 3s...');
+                setTimeout(conectarWS, 3000);
+            };
+
+            ws.onerror = () => ws.close();
+        }
+
+        conectarWS();
+
+        // ── Inicia a busca na rede ────────────────────────────────
+        async function iniciarBusca() {
+            const stickerId = document.getElementById('sticker-id').value.trim().toUpperCase();
+            if (!stickerId) return alert('Digite o ID da figurinha!');
+
+            buscandoId = stickerId;
+            const area = document.getElementById('resultados-busca');
+            area.innerHTML = `<p>Procurando por <strong>${stickerId}</strong> na rede... (TTL: 7)</p>
+                              <ul id="lista-hits"></ul>`;
+
+            try {
+                await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sticker_id: stickerId })
+                });
+            } catch (err) {
+                console.error('Erro ao disparar busca:', err);
             }
         }
-    } catch (e) {}
-}, 2000);
+
+        function mostrarHit(notif) {
+            const listaHits = document.getElementById('lista-hits');
+            if (listaHits) {
+                const li = document.createElement('li');
+                li.innerHTML = `[${notif.time}] ${notif.text}`;
+                listaHits.appendChild(li);
+            }
+        }
+
+        // ── Log de atividades ─────────────────────────────────────
+        function renderLog(logs) {
+            const logEl = document.getElementById('log-atividades');
+            if (logs.length > 0) {
+                logEl.innerHTML = logs.slice(0, 30).map(n =>
+                    `<li class="log-item"><span class="log-time">${n.time}</span> ${n.text}</li>`
+                ).join('');
+            }
+        }
+
+        function adicionarLog(n) {
+            const logEl = document.getElementById('log-atividades');
+            const emptyMsg = logEl.querySelector('.empty-msg');
+            if (emptyMsg) emptyMsg.remove();
+            const li = document.createElement('li');
+            li.className = 'log-item';
+            li.innerHTML = `<span class="log-time">${n.time}</span> ${n.text}`;
+            logEl.prepend(li);
+            while (logEl.children.length > 30) logEl.lastChild.remove();
+        }
     </script>
 </body>
 </html>

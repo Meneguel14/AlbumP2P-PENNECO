@@ -37,22 +37,9 @@ class SearchController {
         const quantidade = inventory.getQuantidade(sticker_id);
 
         if (quantidade > 0) {
-            // Possuo a figurinha – respondo com SEARCH_HIT diretamente ao remetente
+            // Possuo a figurinha – respondo com SEARCH_HIT de volta por onde veio
             const hitMessage = {
                 type: 'SEARCH_HIT',
-                message_id: crypto.randomUUID(),
-                origin_peer_id: MEU_NODE_ID,        // Sou eu quem possui a figurinha
-                sender_peer_id: MEU_NODE_ID,
-                receiver_peer_id: origin_peer_id,   // Quem iniciou a busca
-                query_id: query_id,
-                sticker_id: sticker_id
-            };
-            this.networkContext.sendMessage(this.ws, hitMessage);
-            console.log(`[SEARCH_HIT] ${sticker_id} encontrada! Enviando resposta para ${origin_peer_id}.`);
-        } else {
-            // Não possuo – respondo com SEARCH_MISS (opcional, mas documentado)
-            const missMessage = {
-                type: 'SEARCH_MISS',
                 message_id: crypto.randomUUID(),
                 origin_peer_id: MEU_NODE_ID,
                 sender_peer_id: MEU_NODE_ID,
@@ -60,20 +47,24 @@ class SearchController {
                 query_id: query_id,
                 sticker_id: sticker_id
             };
-            this.networkContext.sendMessage(this.ws, missMessage);
+            this.networkContext.sendMessage(this.ws, hitMessage);
+            console.log(`[SEARCH_HIT] ${sticker_id} encontrada! Enviando resposta para ${origin_peer_id}.`);
         }
+        // SEARCH_MISS é OPCIONAL no protocolo (making.md) e gera tráfego excessivo
+        // em redes grandes. Não enviamos MISS para reduzir congestionamento.
 
-        // Repassa a busca para os vizinhos se o TTL ainda permite
+        // Repassa a busca para os demais vizinhos se o TTL ainda permite
         if (ttl > 1) {
             const forwardMessage = {
                 ...this.message,
-                message_id: crypto.randomUUID(), // Novo ID por salto
+                message_id: crypto.randomUUID(),
                 sender_peer_id: MEU_NODE_ID,
                 ttl: ttl - 1
             };
-            this.networkContext.broadcast(forwardMessage, this.ws); // Não volta para quem mandou
+            this.networkContext.broadcast(forwardMessage, this.ws);
         }
     }
+
 
     /**
      * Inicia uma busca por inundação a partir deste nó.
