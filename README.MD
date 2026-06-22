@@ -107,6 +107,32 @@ Com os dois nós rodando (Nó A na porta 3000 e Nó B na porta 3001):
 
 ---
 
+## 🌐 Como Conectar com Outros Computadores (Rede Física ou Radmin VPN)
+
+O projeto está preparado para rodar em computadores diferentes conectados na mesma rede local física (como a WiFi da faculdade) ou em uma rede local virtual (como o **Radmin VPN**).
+
+### Passo 1: Configurar seu IP no arquivo `config.js`
+1. Descubra o IP que a sua máquina possui na rede (seja o IP obtido via `ipconfig` ou o IP virtual exibido no painel do Radmin VPN, por exemplo: `26.57.185.95`).
+2. Abra o arquivo [config.js](file:///c:/Users/Pedro/Desktop/Tr/SD/AlbumCopa/AlbumP2P-PENNECO/backend/config.js) do seu projeto e atualize a variável `MEU_IP` com esse valor:
+   ```javascript
+   const MEU_IP = '26.57.185.95'; // Insira o seu IP do Radmin VPN ou IP local aqui
+   ```
+
+### Passo 2: Executar o seu nó
+No seu terminal, inicie o seu servidor indicando `none` para o primeiro parâmetro para escutar conexões P2P na porta `8080`:
+```bash
+node backend/server.js none 8080 3000
+```
+
+### Passo 3: Seu amigo conecta no seu computador
+No computador do seu amigo (que também deve estar na mesma rede do Radmin VPN ou de qualquer lugaar), ele deve rodar o projeto apontando para o **seu endereço IP**:
+```bash
+node backend/server.js ws://26.57.185.95:8080 8080 3000
+```
+*(Ao fazer isso, a conexão P2P será estabelecida automaticamente via protocolo `HELLO` e ambos os computadores já poderão buscar e propor trocas de figurinhas).*
+
+---
+
 ## 📂 Estrutura do Projeto
 
 * `backend/server.js`: Inicialização do servidor HTTP Express e do servidor P2P WebSocket.
