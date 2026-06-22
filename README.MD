@@ -111,12 +111,18 @@ Com os dois nós rodando (Nó A na porta 3000 e Nó B na porta 3001):
 
 O projeto está preparado para rodar em computadores diferentes conectados na mesma rede local física (como a WiFi da faculdade) ou em uma rede local virtual (como o **Radmin VPN**).
 
-### Passo 1: Configurar seu IP no arquivo `config.js`
-1. Descubra o IP que a sua máquina possui na rede (seja o IP obtido via `ipconfig` ou o IP virtual exibido no painel do Radmin VPN, por exemplo: `26.57.185.95`).
-2. Abra o arquivo [config.js](file:///c:/Users/Pedro/Desktop/Tr/SD/AlbumCopa/AlbumP2P-PENNECO/backend/config.js) do seu projeto e atualize a variável `MEU_IP` com esse valor:
-   ```javascript
-   const MEU_IP = '26.57.185.95'; // Insira o seu IP do Radmin VPN ou IP local aqui
-   ```
+### Passo 1: Configurar seus dados no arquivo `config.js`
+Cada integrante ou grupo deve configurar sua identificação única, sua figurinha autoral e o seu respectivo endereço IP no arquivo [config.js](file:///c:/Users/Pedro/Desktop/Tr/SD/AlbumCopa/AlbumP2P-PENNECO/backend/config.js):
+
+1. **IP na rede:** Descubra o IP que a sua máquina possui na rede (seja o IP da faculdade obtido via `ipconfig` ou o IP virtual exibido no painel do Radmin VPN, por exemplo: `26.57.185.95`).
+2. **Identificação e Figurinha:** Altere os campos de identificação para corresponder aos dados atribuídos ao seu grupo (ex: ID do aluno e figurinha autoral).
+
+Exemplo de configuração no arquivo:
+```javascript
+const MEU_NODE_ID = 'ALUNO-XX';      // Seu identificador único (ex: ALUNO-17 no computador do amigo)
+const MINHA_FIGURINHA = 'FIG-XX';    // Sua figurinha autoral (ex: FIG-17 no computador do amigo)
+const MEU_IP = '26.57.185.95';       // Seu IP na rede (Radmin VPN ou rede física local)
+```
 
 ### Passo 2: Executar o seu nó
 No seu terminal, inicie o seu servidor indicando `none` para o primeiro parâmetro para escutar conexões P2P na porta `8080`:
