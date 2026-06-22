@@ -5,31 +5,82 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inventário – Álbum P2P</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* ── Grade de figurinhas ──────────────────────────────── */
+        .sticker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .sticker-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: .85rem;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform .2s, box-shadow .2s;
+        }
+        .sticker-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,.5);
+        }
+
+        .sticker-card img {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            object-fit: cover;
+            display: block;
+        }
+
+        .sticker-card .card-info {
+            width: 100%;
+            padding: .6rem .75rem;
+            display: flex;
+            flex-direction: column;
+            gap: .25rem;
+        }
+        .sticker-card .card-id {
+            font-size: .85rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            font-family: monospace;
+        }
+        .sticker-card .card-qty {
+            font-size: .78rem;
+            color: #64748b;
+        }
+        .sticker-card .card-qty strong {
+            color: #22d3ee;
+        }
+
+        /* Badge autoral sobre o card */
+        .sticker-card.autoral {
+            border-color: #22d3ee;
+            box-shadow: 0 0 0 1px #22d3ee33;
+        }
+        .autoral-label {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: #22d3ee;
+            padding: .2rem .5rem 0;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
         <a href="index.html" class="back-link">← Voltar</a>
         <h2>📦 Meu Inventário</h2>
 
-        <!-- Figurinha autoral em destaque -->
-        <div class="card autoral-card">
-            <div class="autoral-img-wrap">
-                <img id="autoral-img" src="/api/sticker-image/FIG-22" alt="FIG-22" class="autoral-img">
-                <span class="autoral-badge">Minha Figurinha</span>
-            </div>
-            <div class="autoral-details">
-                <h3 id="autoral-id">FIG-22</h3>
-                <p class="autoral-qty">Unidades disponíveis: <strong id="autoral-qtd">28</strong></p>
-                <p class="autoral-node">Nó: <code>ALUNO-22</code></p>
-            </div>
-        </div>
-
-        <!-- Outras figurinhas coletadas -->
         <div class="card">
-            <h3>Outras Figurinhas Coletadas</h3>
-            <ul id="lista-inventario" class="sticker-list">
-                <li class="empty-msg">Nenhuma outra figurinha coletada ainda.</li>
-            </ul>
+            <h3>Suas Figurinhas</h3>
+            <div id="sticker-grid" class="sticker-grid">
+                <p class="empty-msg">Carregando inventário...</p>
+            </div>
         </div>
     </div>
 
@@ -38,34 +89,43 @@
             try {
                 const response = await fetch('/api/inventory');
                 const data = await response.json();
-
-                // Atualiza figurinha autoral
                 const autorId = data.figurinha_autoral;
-                document.getElementById('autoral-id').innerText = autorId;
-                document.getElementById('autoral-qtd').innerText = data.figurinhas[autorId] || 0;
-                document.getElementById('autoral-img').src = `/api/sticker-image/${autorId}`;
+                const grid = document.getElementById('sticker-grid');
 
-                // Atualiza lista de outras figurinhas
-                const lista = document.getElementById('lista-inventario');
-                lista.innerHTML = '';
-                let possuiOutras = false;
+                // Ordena: figurinha autoral primeiro, depois as demais
+                const entradas = Object.entries(data.figurinhas).sort(([a], [b]) => {
+                    if (a === autorId) return -1;
+                    if (b === autorId) return 1;
+                    return a.localeCompare(b);
+                });
 
-                for (const [id, qtd] of Object.entries(data.figurinhas)) {
-                    if (id !== autorId) {
-                        possuiOutras = true;
-                        lista.innerHTML += `
-                            <li class="sticker-item">
-                                <strong>${id}</strong>
-                                <span class="badge">${qtd} un.</span>
-                            </li>`;
-                    }
+                if (entradas.length === 0) {
+                    grid.innerHTML = '<p class="empty-msg">Nenhuma figurinha no inventário.</p>';
+                    return;
                 }
 
-                if (!possuiOutras) {
-                    lista.innerHTML = '<li class="empty-msg">Nenhuma outra figurinha coletada ainda.</li>';
-                }
+                grid.innerHTML = entradas.map(([id, qtd]) => {
+                    const isAutoral = id === autorId;
+                    return `
+                        <div class="sticker-card ${isAutoral ? 'autoral' : ''}">
+                            <img
+                                src="/api/sticker-image/${id}"
+                                alt="${id}"
+                                onerror="this.src='/api/sticker-image/FIG-XX'"
+                            >
+                            <div class="card-info">
+                                ${isAutoral ? '<span class="autoral-label">⭐ Minha Figurinha</span>' : ''}
+                                <span class="card-id">${id}</span>
+                                <span class="card-qty">Quantidade: <strong>${qtd}</strong></span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
             } catch (err) {
                 console.error('Erro ao carregar inventário:', err);
+                document.getElementById('sticker-grid').innerHTML =
+                    '<p class="empty-msg">Erro ao carregar inventário.</p>';
             }
         }
 

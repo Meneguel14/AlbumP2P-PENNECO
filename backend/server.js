@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
 const { initP2PServer, connectToNeighbor, broadcast } = require('./network/p2p');
 const inventory = require('./models/inventory');
@@ -16,10 +17,12 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../frontend')));
 
 // ── Rota: imagem de figurinha ─────────────────────────────────
-// Serve arquivos PNG da raiz do projeto pai (ex: FIG-22.png).
+// Busca primeiro em AlbumCopa/Images/, depois na raiz AlbumCopa/.
 app.get('/api/sticker-image/:sticker_id', (req, res) => {
-    const { sticker_id } = req.params;
-    const imagePath = path.join(__dirname, '../../', `${sticker_id}.png`);
+    const cleanId = req.params.sticker_id.replace(/\.(png|PNG)$/i, '');
+    const imagesDir  = path.join(__dirname, '../../Images', `${cleanId}.png`);
+    const rootDir    = path.join(__dirname, '../../',       `${cleanId}.png`);
+    const imagePath  = fs.existsSync(imagesDir) ? imagesDir : rootDir;
     res.sendFile(imagePath, (err) => {
         if (err) res.status(404).json({ error: 'Imagem não encontrada.' });
     });
