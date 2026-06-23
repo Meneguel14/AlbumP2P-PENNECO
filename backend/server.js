@@ -21,7 +21,7 @@ app.use(express.static(path.join(__dirname, '../frontend')));
 // Busca primeiro em AlbumCopa/Images/, depois na raiz AlbumCopa/.
 app.get('/api/sticker-image/:sticker_id', (req, res) => {
     const cleanId = req.params.sticker_id.replace(/\.(png|PNG)$/i, '');
-    const imagesDir = path.join(__dirname, '../../Images', `${cleanId}.png`);
+    const imagesDir = path.join(__dirname, '../Images', `${cleanId}.png`);
     const rootDir   = path.join(__dirname, '../../',       `${cleanId}.png`);
     const imagePath = fs.existsSync(imagesDir) ? imagesDir : rootDir;
     res.sendFile(imagePath, (err) => {
@@ -109,7 +109,6 @@ const httpServer = app.listen(HTTP_PORT, () => {
     console.log(`  Nó: ${MEU_NODE_ID}`);
     console.log(`  [P2P]  Rede ativa na porta  : ${P2P_PORT}`);
     console.log(`  [HTTP] Painel web em         : http://localhost:${HTTP_PORT}`);
-    console.log(`  [WS]   Notificações ao vivo  : ws://localhost:${HTTP_PORT}`);
     console.log(`=============================================================\n`);
 });
 

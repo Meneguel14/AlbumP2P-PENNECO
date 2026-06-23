@@ -12,6 +12,7 @@
 // ============================================================
 const inventory = require('../models/inventory');
 const notificationService = require('../services/notificationService');
+const { MEU_NODE_ID } = require('../config');
 
 class TransferConfirmController {
     /**
@@ -26,7 +27,13 @@ class TransferConfirmController {
     }
 
     handle() {
-        const { sender_peer_id, offer_sticker_id, want_sticker_id } = this.message;
+        const { sender_peer_id, receiver_peer_id, offer_sticker_id, want_sticker_id } = this.message;
+
+        // Só processa se a mensagem é destinada a este nó
+        if (receiver_peer_id !== MEU_NODE_ID) {
+            console.log(`[TRANSFER_CONFIRM] Ignorado – destinado a ${receiver_peer_id}, não a ${MEU_NODE_ID}.`);
+            return;
+        }
 
         console.log(
             `[TRANSFER_CONFIRM] Transferência confirmada por ${sender_peer_id}: ` +
