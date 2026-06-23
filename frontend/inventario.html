@@ -3,54 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meu Inventário - Álbum P2P</title>
+    <title>Inventário – Álbum P2P</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* ── Grade de figurinhas ──────────────────────────────── */
+        .sticker-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .sticker-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: .85rem;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform .2s, box-shadow .2s;
+        }
+        .sticker-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,.5);
+        }
+
+        .sticker-card img {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            object-fit: cover;
+            display: block;
+        }
+
+        .sticker-card .card-info {
+            width: 100%;
+            padding: .6rem .75rem;
+            display: flex;
+            flex-direction: column;
+            gap: .25rem;
+        }
+        .sticker-card .card-id {
+            font-size: .85rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            font-family: monospace;
+        }
+        .sticker-card .card-qty {
+            font-size: .78rem;
+            color: #64748b;
+        }
+        .sticker-card .card-qty strong {
+            color: #22d3ee;
+        }
+
+        /* Badge autoral sobre o card */
+        .sticker-card.autoral {
+            border-color: #22d3ee;
+            box-shadow: 0 0 0 1px #22d3ee33;
+        }
+        .autoral-label {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            color: #22d3ee;
+            padding: .2rem .5rem 0;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
+        <a href="index.html" class="back-link">← Voltar</a>
         <h2>📦 Meu Inventário</h2>
-        
-        <div class="card">
-            <h3>Minha Figurinha Autoral</h3>
-            <p><strong>ID:</strong> <span id="autoral-id">FIG-01</span></p>
-            <p><strong>Quantidade disponível:</strong> <span id="autoral-qtd">28</span></p>
-        </div>
 
         <div class="card">
-            <h3>Outras Figurinhas</h3>
-            <ul id="lista-inventario">
-                <li>Ainda não há outras figurinhas no inventário.</li>
-            </ul>
+            <h3>Suas Figurinhas</h3>
+            <div id="sticker-grid" class="sticker-grid">
+                <p class="empty-msg">Carregando inventário...</p>
+            </div>
         </div>
     </div>
 
     <script>
-       async function carregarInventario() {
-    try {
-        const response = await fetch('/api/inventory');
-        const data = await response.json();
-        
-        document.getElementById('autoral-id').innerText = data.figurinha_autoral;
-        document.getElementById('autoral-qtd').innerText = data.figurinhas[data.figurinha_autoral] || 0;
-        
-        const lista = document.getElementById('lista-inventario');
-        lista.innerHTML = '';
-        
-        let possuiOutras = false;
-        for (const [id, qtd] of Object.entries(data.figurinhas)) {
-            if (id !== data.figurinha_autoral) {
-                possuiOutras = true;
-                lista.innerHTML += `<li><strong>${id}</strong> — Unidades: ${qtd}</li>`;
+        async function carregarInventario() {
+            try {
+                const response = await fetch('/api/inventory');
+                const data = await response.json();
+                const autorId = data.figurinha_autoral;
+                const grid = document.getElementById('sticker-grid');
+
+                // Ordena: figurinha autoral primeiro, depois as demais
+                const entradas = Object.entries(data.figurinhas).sort(([a], [b]) => {
+                    if (a === autorId) return -1;
+                    if (b === autorId) return 1;
+                    return a.localeCompare(b);
+                });
+
+                if (entradas.length === 0) {
+                    grid.innerHTML = '<p class="empty-msg">Nenhuma figurinha no inventário.</p>';
+                    return;
+                }
+
+                grid.innerHTML = entradas.map(([id, qtd]) => {
+                    const isAutoral = id === autorId;
+                    return `
+                        <div class="sticker-card ${isAutoral ? 'autoral' : ''}">
+                            <img
+                                src="/api/sticker-image/${id}"
+                                alt="${id}"
+                                onerror="this.src='/api/sticker-image/FIG-XX'"
+                            >
+                            <div class="card-info">
+                                ${isAutoral ? '<span class="autoral-label">⭐ Minha Figurinha</span>' : ''}
+                                <span class="card-id">${id}</span>
+                                <span class="card-qty">Quantidade: <strong>${qtd}</strong></span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (err) {
+                console.error('Erro ao carregar inventário:', err);
+                document.getElementById('sticker-grid').innerHTML =
+                    '<p class="empty-msg">Erro ao carregar inventário.</p>';
             }
         }
-        if(!possuiOutras) {
-            lista.innerHTML = '<li>Nenhuma outra figurinha coletada até o momento.</li>';
-        }
-    } catch (err) {
-        console.error("Erro ao carregar inventário:", err);
-    }
-}
-carregarInventario();
+
+        carregarInventario();
+        setInterval(carregarInventario, 5000); // Atualiza a cada 5s
     </script>
 </body>
 </html>

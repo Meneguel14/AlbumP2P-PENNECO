@@ -1,88 +1,141 @@
 const inventory = require('../models/inventory');
 
 // Guarda as propostas recebidas aguardando ação do usuário
-let pendingOffers = [];
+// ============================================================
+// tradeService.js – Estado e ações de troca iniciadas manualmente
+//
+// Mantém a fila de propostas recebidas aguardando decisão do
+// usuário e fornece as funções chamadas pelas rotas HTTP.
+//
+// Nota sobre os campos:
+//   offer_sticker_id = figurinha que o REMETENTE está oferecendo
+//   want_sticker_id  = figurinha que o REMETENTE deseja receber
+// ============================================================
+const crypto = require('crypto');
+const inventory = require('../models/inventory');
+const notificationService = require('../services/notificationService');
+const { MEU_NODE_ID } = require('../config');
 
+let pendingOffers = [];
+let pushCallback = null;
+
+/** Registra a função que empurra eventos para os browsers via WebSocket. */
+function setPushCallback(fn) {
+    pushCallback = fn;
+}
+
+/** Adiciona uma proposta recebida à fila de pendentes e notifica o browser. */
+function addOffer(offer) {
+    pendingOffers.push(offer);
+    if (pushCallback) {
+        pushCallback({ type: 'PENDING_OFFERS', pending: pendingOffers });
+    }
+}
+
+/** Retorna todas as propostas ainda aguardando decisão. */
 function getPendingOffers() {
     return pendingOffers;
 }
 
-function processTradeOffer(ws, message, networkContext, myNodeId) {
-    console.log(`[TRADE_OFFER] Proposta recebida de ${message.sender_peer_id}. Aguardando decisão do usuário...`);
-    
-    // Adiciona a proposta na lista para o frontend ler
-    pendingOffers.push(message);
-}
+/**
+ * Aceita uma proposta da fila (chamado pela rota HTTP do frontend).
+ *
+ * Fluxo (conforme especificação):
+ *   1. Atualiza o inventário local (damos a figurinha que pediram, recebemos a oferecida).
+ *   2. Envia TRADE_ACCEPT.
+ *   3. Envia TRANSFER_CONFIRM para que o proponente atualize o inventário dele.
+ *
+ * @param {string} offerId       – sender_peer_id da proposta a aceitar
+ * @param {Object} networkContext – { broadcast }
+ * @returns {boolean} true se a proposta foi encontrada e aceita com sucesso
+ */
+function processManualAccept(offerId, networkContext) {
+    const idx = pendingOffers.findIndex(o => o.sender_peer_id === offerId);
+    if (idx === -1) return false;
 
-// Quando o usuário clica no HTML em "Aceitar"
-function processManualAccept(offerId, networkContext, myNodeId) {
-    // Busca a oferta na lista pelo ID de quem mandou (simplificado)
-    const offerIndex = pendingOffers.findIndex(o => o.sender_peer_id === offerId);
-    if (offerIndex === -1) return false;
+    const offer = pendingOffers.splice(idx, 1)[0];
+    // offer.offer_sticker_id = figurinha que o proponente nos envia (receberemos)
+    // offer.want_sticker_id  = figurinha que o proponente quer de nós (daremos)
 
-    const offer = pendingOffers[offerIndex];
-    pendingOffers.splice(offerIndex, 1); // Remove da lista de pendentes
+    // 1. Verificar saldo e atualizar inventário
+    const removeSuccess = inventory.removerFigurinha(offer.want_sticker_id, 1);
+    if (!removeSuccess) {
+        notificationService.addNotification(
+            `Saldo insuficiente para ${offer.want_sticker_id}. Proposta não aceita.`
+        );
+        return false;
+    }
+    inventory.adicionarFigurinha(offer.offer_sticker_id, 1);
 
-    console.log(`[TRADE] Você aceitou a proposta de ${offer.sender_peer_id}.`);
-    
+    // 2. Enviar TRADE_ACCEPT (da perspectiva de quem aceita)
     const acceptMsg = {
-        type: "TRADE_ACCEPT",
-        sender_peer_id: myNodeId,
+        type: 'TRADE_ACCEPT',
+        message_id: crypto.randomUUID(),
+        origin_peer_id: MEU_NODE_ID,
+        sender_peer_id: MEU_NODE_ID,
         receiver_peer_id: offer.sender_peer_id,
-        offered_sticker: offer.wanted_sticker, 
-        wanted_sticker: offer.offered_sticker
+        offer_sticker_id: offer.want_sticker_id,   // O que NÓS oferecemos = o que eles queriam
+        want_sticker_id: offer.offer_sticker_id    // O que NÓS queremos   = o que eles ofereciam
     };
-    
-    // Faz o broadcast para avisar o outro nó que aceitamos
     networkContext.broadcast(acceptMsg);
+
+    // 3. Enviar TRANSFER_CONFIRM para o proponente atualizar o inventário dele
+    const confirmMsg = {
+        type: 'TRANSFER_CONFIRM',
+        message_id: crypto.randomUUID(),
+        origin_peer_id: MEU_NODE_ID,
+        sender_peer_id: MEU_NODE_ID,
+        receiver_peer_id: offer.sender_peer_id,
+        offer_sticker_id: offer.want_sticker_id,   // O que transferimos para eles
+        want_sticker_id: offer.offer_sticker_id    // O que recebemos deles
+    };
+    networkContext.broadcast(confirmMsg);
+
+    notificationService.addNotification(
+        `Você aceitou a proposta de ${offer.sender_peer_id}. Inventário atualizado!`
+    );
+    console.log(`[TRADE] Proposta de ${offer.sender_peer_id} aceita. Inventário atualizado.`);
     return true;
 }
 
-// Quando o usuário clica no HTML em "Recusar"
-function processManualReject(offerId, networkContext, myNodeId) {
-    const offerIndex = pendingOffers.findIndex(o => o.sender_peer_id === offerId);
-    if (offerIndex === -1) return false;
+/**
+ * Rejeita uma proposta da fila (chamado pela rota HTTP do frontend).
+ * Nenhum inventário é alterado.
+ *
+ * @param {string} offerId       – sender_peer_id da proposta a rejeitar
+ * @param {Object} networkContext – { broadcast }
+ * @returns {boolean} true se a proposta foi encontrada
+ */
+function processManualReject(offerId, networkContext) {
+    const idx = pendingOffers.findIndex(o => o.sender_peer_id === offerId);
+    if (idx === -1) return false;
 
-    const offer = pendingOffers[offerIndex];
-    pendingOffers.splice(offerIndex, 1);
+    const offer = pendingOffers.splice(idx, 1)[0];
 
     const rejectMsg = {
-        type: "TRADE_REJECT",
-        sender_peer_id: myNodeId,
-        receiver_peer_id: offer.sender_peer_id
+        type: 'TRADE_REJECT',
+        message_id: crypto.randomUUID(),
+        origin_peer_id: MEU_NODE_ID,
+        sender_peer_id: MEU_NODE_ID,
+        receiver_peer_id: offer.sender_peer_id,
+        offer_sticker_id: offer.want_sticker_id,   // Campos espelhados como no TRADE_ACCEPT
+        want_sticker_id: offer.offer_sticker_id
     };
     networkContext.broadcast(rejectMsg);
+
+    notificationService.addNotification(
+        `Você recusou a proposta de ${offer.sender_peer_id}.`
+    );
+    console.log(`[TRADE] Proposta de ${offer.sender_peer_id} recusada.`);
     return true;
 }
 
-function processTradeAccept(ws, message, networkContext, myNodeId) {
-    console.log(`[TRADE_ACCEPT] ${message.sender_peer_id} aceitou sua proposta!`);
-    
-    const sucessoRemover = inventory.removerFigurinha(message.wanted_sticker, 1);
-    if(sucessoRemover) {
-        inventory.adicionarFigurinha(message.offered_sticker, 1);
-        const confirmMsg = {
-            type: "TRANSFER_CONFIRM",
-            sender_peer_id: myNodeId,
-            receiver_peer_id: message.sender_peer_id,
-            transferred_sticker: message.wanted_sticker
-        };
-        networkContext.sendMessage(ws, confirmMsg);
-        console.log(`[TRADE] Confirmação de transferência enviada!`);
-    }
-}
-
-function processTransferConfirm(ws, message) {
-    console.log(`[TRANSFER_CONFIRM] Transferência concluída pelo nó ${message.sender_peer_id}.`);
-    inventory.adicionarFigurinha(message.transferred_sticker, 1);
-    inventory.removerFigurinha(inventory.getInventario().figurinha_autoral, 1); 
-}
-
-module.exports = { 
-    processTradeOffer, 
-    processTradeAccept, 
-    processTransferConfirm,
+module.exports = {
+    addOffer,
     getPendingOffers,
     processManualAccept,
     processManualReject
+};
+    processManualReject,
+    setPushCallback
 };

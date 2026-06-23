@@ -12,6 +12,7 @@
   },
   "homepage": "https://github.com/Meneguel14/AlbumP2P-PENNECO#readme",
   "scripts": {
+    "start": "node backend/server.js none 8080 3000",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
