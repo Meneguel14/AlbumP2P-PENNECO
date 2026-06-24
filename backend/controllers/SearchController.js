@@ -28,6 +28,9 @@ class SearchController {
     handle() {
         const { query_id, sticker_id, origin_peer_id, ttl } = this.message;
 
+        // Ignora busca originada por este próprio nó (não propaga/responde a sua própria busca)
+        if (origin_peer_id === MEU_NODE_ID) return;
+
         // Evita loop: ignora se essa query já foi processada
         if (searchState.hasProcessed(query_id)) return;
         searchState.markProcessed(query_id);
