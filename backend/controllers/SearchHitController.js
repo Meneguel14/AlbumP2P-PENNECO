@@ -24,6 +24,9 @@ class SearchHitController {
     handle() {
         const { sticker_id, origin_peer_id, receiver_peer_id } = this.message;
 
+        // Ignora HIT que vem do próprio nó (auto-resposta)
+        if (origin_peer_id === MEU_NODE_ID) return;
+
         if (receiver_peer_id === MEU_NODE_ID) {
             // O HIT chegou ao destino: sou eu quem iniciou a busca
             const text = `[HIT] Figurinha ${sticker_id} encontrada no nó ${origin_peer_id}!`;
