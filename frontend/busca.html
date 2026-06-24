@@ -14,7 +14,7 @@
         <div class="form-group">
             <label for="sticker-id">ID da Figurinha (ex: FIG-05):</label>
             <input type="text" id="sticker-id" placeholder="FIG-XX">
-            <button class="btn" onclick="iniciarBusca()">Iniciar Busca (Flooding)</button>
+            <button class="btn" id="btn-buscar" onclick="iniciarBusca()">Iniciar Busca (Flooding)</button>
         </div>
 
         <div class="card">
@@ -33,14 +33,18 @@
     </div>
 
     <script>
-        // ── WebSocket para receber resultados em tempo real ───────
+        // TTL no servidor é 7 saltos. Estimamos ~1s por salto + 1s de margem = 8s.
+        const TTL_TIMEOUT_MS = 8000;
+
         const wsUrl = `ws://${location.host}`;
         let ws;
-        let buscandoId = null;
+        let buscandoId    = null;
+        let hitEncontrado = false;
+        let ttlTimer      = null;
+        let progressTimer = null;
 
         function conectarWS() {
             ws = new WebSocket(wsUrl);
-
             ws.onopen = () => console.log('[WS] Conectado ao backend.');
 
             ws.onmessage = (event) => {
@@ -49,10 +53,15 @@
                     renderLog(data.notifications || []);
                 } else if (data.type === 'NOTIFICATION') {
                     adicionarLog(data.notification);
-                    // Se for um HIT para a busca atual, mostra no resultado
-                    if (buscandoId && data.notification.text.includes('[HIT]') &&
-                        data.notification.text.includes(buscandoId)) {
+                    // Verifica se é um HIT para a busca atual
+                    if (buscandoId &&
+                        data.notification.text.includes('[HIT]') &&
+                        data.notification.text.toUpperCase().includes(buscandoId.toUpperCase())) {
+                        hitEncontrado = true;
+                        clearTimeout(ttlTimer);
+                        clearInterval(progressTimer);
                         mostrarHit(data.notification);
+                        encerrarBusca(true);
                     }
                 }
             };
@@ -61,7 +70,6 @@
                 console.log('[WS] Desconectado. Reconectando em 3s...');
                 setTimeout(conectarWS, 3000);
             };
-
             ws.onerror = () => ws.close();
         }
 
@@ -72,10 +80,36 @@
             const stickerId = document.getElementById('sticker-id').value.trim().toUpperCase();
             if (!stickerId) return alert('Digite o ID da figurinha!');
 
-            buscandoId = stickerId;
+            // Limpa estado anterior
+            clearTimeout(ttlTimer);
+            clearInterval(progressTimer);
+            buscandoId    = stickerId;
+            hitEncontrado = false;
+
+            const btn  = document.getElementById('btn-buscar');
             const area = document.getElementById('resultados-busca');
-            area.innerHTML = `<p>Procurando por <strong>${stickerId}</strong> na rede... (TTL: 7)</p>
-                              <ul id="lista-hits"></ul>`;
+            const totalSec = TTL_TIMEOUT_MS / 1000;
+
+            btn.disabled    = true;
+            btn.textContent = `Buscando... (0/${totalSec}s)`;
+            area.innerHTML  = `<p>Procurando por <strong>${stickerId}</strong> na rede...
+                                <span id="ttl-countdown">(TTL: 7 saltos — aguardando resposta)</span></p>
+                               <ul id="lista-hits"></ul>`;
+
+            // Timer de progresso visual (atualiza a cada 1s)
+            let elapsed = 0;
+            progressTimer = setInterval(() => {
+                elapsed++;
+                const span = document.getElementById('ttl-countdown');
+                if (span) span.textContent = `(${elapsed}s / ${totalSec}s)`;
+                btn.textContent = `Buscando... (${elapsed}/${totalSec}s)`;
+            }, 1000);
+
+            // Timer do TTL — se não chegar HIT no tempo estimado, encerra com "não encontrado"
+            ttlTimer = setTimeout(() => {
+                clearInterval(progressTimer);
+                if (!hitEncontrado) encerrarBusca(false);
+            }, TTL_TIMEOUT_MS);
 
             try {
                 await fetch('/api/search', {
@@ -84,7 +118,25 @@
                     body: JSON.stringify({ sticker_id: stickerId })
                 });
             } catch (err) {
+                clearInterval(progressTimer);
+                clearTimeout(ttlTimer);
+                encerrarBusca(false);
                 console.error('Erro ao disparar busca:', err);
+            }
+        }
+
+        function encerrarBusca(encontrou) {
+            const btn = document.getElementById('btn-buscar');
+            btn.disabled    = false;
+            btn.textContent = 'Iniciar Busca (Flooding)';
+
+            if (!encontrou) {
+                const area = document.getElementById('resultados-busca');
+                area.innerHTML = `<p style="color:#f87171;">
+                    ⚠️ Figurinha <strong>${buscandoId}</strong> não encontrada na rede
+                    (TTL de 7 saltos esgotado sem resposta).
+                </p>`;
+                buscandoId = null;
             }
         }
 
@@ -92,7 +144,8 @@
             const listaHits = document.getElementById('lista-hits');
             if (listaHits) {
                 const li = document.createElement('li');
-                li.innerHTML = `[${notif.time}] ${notif.text}`;
+                li.style.cssText = 'color:#4ade80; padding:.4rem 0;';
+                li.innerHTML = `✅ [${notif.time}] ${notif.text}`;
                 listaHits.appendChild(li);
             }
         }
