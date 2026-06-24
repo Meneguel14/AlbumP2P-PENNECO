@@ -6,14 +6,9 @@
 const MEU_NODE_ID = process.env.NODE_ID || 'ALUNO-17';      // Seu identificador na rede
 const MINHA_FIGURINHA = process.env.NODE_FIGURINHA || 'FIG-17';    // Figurinha autoral (mesma numeração)
 const MEU_IP = process.env.NODE_IP || '192.168.18.198';       // IP atual da máquina na rede local
+
 const INITIAL_QUANTITY = 28;          // Distribuição inicial obrigatória
 const SEARCH_TTL = 7;                 // TTL inicial para buscas por inundação
 
 module.exports = { MEU_NODE_ID, MINHA_FIGURINHA, MEU_IP, INITIAL_QUANTITY, SEARCH_TTL };
-
-
-
-
-
-
 

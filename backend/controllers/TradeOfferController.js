@@ -1,26 +1,15 @@
 // ============================================================
 // TradeOfferController.js
-// Protocolo TRADE_OFFER – Recebe proposta de troca de outro nó.
-//
-// Correções aplicadas:
-//   1. Só processa se receiver_peer_id === MEU_NODE_ID
-//      (evita aceitar propostas destinadas a outros nós)
-//   2. Deduplicação por message_id
-//      (evita duplicatas quando o remetente tem múltiplas conexões)
+// Protocolo TRADE_OFFER – Recebe ou encaminha proposta de troca.
 // ============================================================
-const tradeState = require('../services/tradeService');
-const notificationService = require('../services/notificationService');
+const tradeService = require('../services/tradeService');
 const { MEU_NODE_ID } = require('../config');
+const inventory = require('../models/inventory');
 
-// Set para deduplicação de TRADE_OFFERs já processados
+// Set para evitar processar a mesma oferta múltiplas vezes (loop de rede)
 const processedOffers = new Set();
 
 class TradeOfferController {
-    /**
-     * @param {WebSocket} ws             – Conexão de onde veio a mensagem
-     * @param {Object}    message        – Mensagem TRADE_OFFER recebida
-     * @param {Object}    networkContext – { broadcast, sendMessage }
-     */
     constructor(ws, message, networkContext) {
         this.ws = ws;
         this.message = message;
@@ -28,32 +17,35 @@ class TradeOfferController {
     }
 
     handle() {
-        const { message_id, sender_peer_id, receiver_peer_id, offer_sticker_id, want_sticker_id } = this.message;
+        // Desestruturando a mensagem. 
+        // ATENÇÃO: Verifique se no seu JSON a figurinha está em this.message.want_sticker_id 
+        // ou this.message.offer.want_sticker_id. Ajustei abaixo para o formato mais comum.
+        const { message_id, receiver_peer_id, sender_peer_id, want_sticker_id } = this.message;
 
-        // 1. Verifica se a proposta é destinada a este nó
-        if (receiver_peer_id !== MEU_NODE_ID) {
-            console.log(`[TRADE_OFFER] Ignorado – destinado a ${receiver_peer_id}, não a ${MEU_NODE_ID}.`);
-            return;
-        }
-
-        // 2. Evita duplicata (mesmo message_id chegando por múltiplos caminhos)
+        // 1. Deduplicação: ignora se já processamos esta mensagem
         if (processedOffers.has(message_id)) {
-            console.log(`[TRADE_OFFER] Duplicata ignorada (message_id: ${message_id}).`);
-            return;
+            return; 
         }
+
+        // 2. Validação de Disponibilidade (Só verificamos se for para nós)
+        if (receiver_peer_id === MEU_NODE_ID) {
+            if (inventory.getQuantidade(want_sticker_id) <= 0) {
+                console.log(`[TRADE_OFFER] Rejeitado: ${want_sticker_id} não disponível.`);
+                // Opcional: Enviar um TRADE_REJECT para o remetente aqui
+                return;
+            }
+        }
+
         processedOffers.add(message_id);
 
-        console.log(
-            `[TRADE_OFFER] Proposta de ${sender_peer_id}: ` +
-            `oferece ${offer_sticker_id} e quer ${want_sticker_id}`
-        );
-
-        // Armazena para decisão do usuário via frontend
-        tradeState.addOffer(this.message);
-
-        notificationService.addNotification(
-            `Proposta de ${sender_peer_id}: oferece ${offer_sticker_id} e quer ${want_sticker_id}`
-        );
+        // 3. Roteamento
+        if (receiver_peer_id === MEU_NODE_ID) {
+            console.log(`[TRADE_OFFER] Proposta de ${sender_peer_id} recebida para mim.`);
+            tradeService.addOffer(this.message);
+        } else {
+            console.log(`[TRADE_OFFER] Repassando oferta de ${sender_peer_id} para ${receiver_peer_id}.`);
+            this.networkContext.broadcast(this.message);
+        }
     }
 }
 

@@ -1,5 +1,10 @@
+# Pastas de dependências
 node_modules/
-/FIG-22.png
+
+# Inventários e dados locais
+inventario_*.json
+vizinhos.json
+
+# Imagens autorais/temporárias
+/FIG-*.png
 /making.md
-/vizinhos.json
-/inventario_ALUNO-22.json
