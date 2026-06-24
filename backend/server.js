@@ -10,7 +10,7 @@ const notificationService = require('./services/notificationService');
 const tradeService = require('./services/tradeService');
 const SearchController = require('./controllers/SearchController');
 const { MEU_NODE_ID } = require('./config');
-
+const config = require('./config');
 const app = express();
 app.use(express.json());
 
@@ -139,6 +139,13 @@ function pushToFrontend(event) {
         }
     }
 }
+
+app.get('/api/config', (req, res) => {
+    res.json({
+        nodeId: config.MEU_NODE_ID,
+        minhaFigurinha: config.MINHA_FIGURINHA
+    });
+});
 
 // Registra o callback de push nos serviços
 notificationService.setPushCallback(pushToFrontend);

@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Álbum P2P – Nó ALUNO-14</title>
+    <title>Álbum P2P</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header class="hero">
             <div class="hero-sticker">
-                <img src="/api/sticker-image/FIG-14" alt="Figurinha FIG-14" class="sticker-hero-img" id="hero-img">
+                <img src="" alt="Carregando..." class="sticker-hero-img" id="hero-img">
             </div>
             <div class="hero-info">
                 <p class="node-label">Nó Ativo</p>
-                <h1>ALUNO-14</h1>
-                <p class="hero-sub">João Meneguel · FIG-14 · Álbum P2P</p>
+                <h1 id="node-id">Carregando...</h1>
+                <p class="hero-sub" id="hero-sub">Buscando informações do nó...</p>
             </div>
         </header>
 
@@ -34,5 +34,36 @@
             </a>
         </nav>
     </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // Faz a requisição para a rota que criamos no backend
+            fetch('/api/config')
+                .then(response => {
+                    if (!response.ok) throw new Error('Erro na resposta do servidor');
+                    return response.json();
+                })
+                .then(data => {
+                    // 1. Atualiza o título da aba do navegador
+                    document.title = `Álbum P2P – Nó ${data.nodeId}`;
+                    
+                    // 2. Atualiza o ID do Aluno principal (ex: ALUNO-17 ou ALUNO-22)
+                    document.getElementById('node-id').textContent = data.nodeId;
+                    
+                    // 3. Atualiza a imagem da figurinha do topo correspondente ao nó ativo
+                    const heroImg = document.getElementById('hero-img');
+                    heroImg.src = `/api/sticker-image/${data.minhaFigurinha}`;
+                    heroImg.alt = `Figurinha ${data.minhaFigurinha}`;
+                    
+                    // 4. Atualiza o texto descritivo secundário abaixo do título
+                    document.getElementById('hero-sub').textContent = `Nó Autoral · ${data.minhaFigurinha} · Álbum P2P`;
+                })
+                .catch(err => {
+                    console.error('Erro ao carregar as configurações locais:', err);
+                    document.getElementById('node-id').textContent = 'Erro de Conexão';
+                    document.getElementById('hero-sub').textContent = 'Não foi possível ler o config.js';
+                });
+        });
+    </script>
 </body>
 </html>

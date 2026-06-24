@@ -1,4 +1,3 @@
-const inventory = require('../models/inventory');
 
 // Guarda as propostas recebidas aguardando ação do usuário
 // ============================================================
@@ -134,8 +133,7 @@ module.exports = {
     addOffer,
     getPendingOffers,
     processManualAccept,
-    processManualReject
-};
     processManualReject,
-    setPushCallback
+     setPushCallback
 };
+  
